@@ -187,8 +187,8 @@ class TextToImageRequestBody(GenerationRequestOptionalParams):
 
 class ImageToImageUpscaleRequestBody(BaseModel):
     image: InitImage
-    width: Optional[UpscaleImageWidth]
-    height: Optional[UpscaleImageHeight]
+    width: Optional[UpscaleImageWidth] = None
+    height: Optional[UpscaleImageHeight] = None
 
     @validator("width", always=True)
     def mutually_exclusive(cls, v, values):
