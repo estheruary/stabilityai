@@ -192,7 +192,7 @@ class ImageToImageUpscaleRequestBody(BaseModel):
 
     @validator("width", always=True)
     def mutually_exclusive(cls, v, values):
-        if values["height"] is not None and v:
+        if values.get("height") is not None and v:
             raise ValueError("You can only specify one of width and height.")
         return v
 
