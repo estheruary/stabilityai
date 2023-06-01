@@ -1,2 +1,6 @@
-class YouNeedToUseAContextManager(Exception):
+class YouNeedToUseAContextManager(ValueError):
+    pass
+
+
+class ThisFunctionRequiresAPrompt(ValueError):
     pass

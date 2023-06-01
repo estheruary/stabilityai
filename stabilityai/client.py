@@ -13,7 +13,7 @@ from stabilityai.constants import (
     DEFAULT_STABILITY_CLIENT_VERSION,
     DEFAULT_UPSCALE_ENGINE,
 )
-from stabilityai.exceptions import YouNeedToUseAContextManager
+from stabilityai.exceptions import ThisFunctionRequiresAPrompt, YouNeedToUseAContextManager
 from stabilityai.models import (
     AccountResponseBody,
     BalanceResponseBody,
@@ -127,7 +127,7 @@ class AsyncStabilityClient:
         text_prompt: Optional[SingleTextPrompt]
     ):
         if not bool(text_prompt) ^ bool(text_prompts):
-            raise RuntimeError(
+            raise ThisFunctionRequiresAPrompt(
                 textwrap.dedent(
                     f"""\
                     You must provide one of text_prompt and text_prompts.
@@ -202,6 +202,27 @@ class AsyncStabilityClient:
         Sampler.K_DPMPP_2M
 
         return TextToImageResponseBody.parse_obj(await res.json())
+
+    async def text_to_image_simple(
+        self,
+        prompt: str,
+        style_preset: Optional[StylePreset] = StylePreset.digital_art,
+        n: int = 1,
+        size: str = "512x512",
+    ):
+        """
+        An OpenAI SDK style call that makes it easy to migrate.
+        """
+
+        dim = int(size.split("x")[0])
+
+        return await self.text_to_image(
+            text_prompts=[TextPrompt(text=prompt)],
+            style_preset=style_preset,
+            samples=n,
+            width=dim,
+            height=dim,
+        )
 
     @validate_arguments
     async def image_to_image(
