@@ -3,6 +3,7 @@ import textwrap
 from typing import Optional
 
 import aiohttp
+from aiohttp.client_exceptions import ClientResponseError
 from pydantic import validate_arguments
 
 from stabilityai.constants import (
@@ -15,6 +16,7 @@ from stabilityai.constants import (
 from stabilityai.exceptions import (
     ThisFunctionRequiresAPrompt,
     YouNeedToUseAContextManager,
+    figure_out_exception,
 )
 from stabilityai.models import (
     AccountResponseBody,
@@ -188,12 +190,16 @@ class AsyncStabilityClient:
             extras=extras,
         )
 
-        res = await self.session.post(
-            f"/v1/generation/{engine_id}/text-to-image",
-            headers={"Content-Type": "application/json"},
-            data=request_body.json(exclude_defaults=True, exclude_none=True, exclude_unset=True),
-        )
-        Sampler.K_DPMPP_2M
+        try:
+            res = await self.session.post(
+                f"/v1/generation/{engine_id}/text-to-image",
+                headers={"Content-Type": "application/json"},
+                data=request_body.json(
+                    exclude_defaults=True, exclude_none=True, exclude_unset=True
+                ),
+            )
+        except ClientResponseError as e:
+            raise figure_out_exception(e) from e
 
         return TextToImageResponseBody.parse_obj(await res.json())
 
@@ -257,10 +263,15 @@ class AsyncStabilityClient:
             extras=extras,
         )
 
-        res = await self.session.post(
-            f"/v1/generation/{engine_id}/text-to-image",
-            data=request_body.json(exclude_none=True, exclude_defaults=True, exclude_unset=True),
-        )
+        try:
+            res = await self.session.post(
+                f"/v1/generation/{engine_id}/text-to-image",
+                data=request_body.json(
+                    exclude_none=True, exclude_defaults=True, exclude_unset=True
+                ),
+            )
+        except ClientResponseError as e:
+            raise figure_out_exception(e) from e
 
         return ImageToImageResponseBody.parse_obj(await res.json())
 
@@ -283,9 +294,12 @@ class AsyncStabilityClient:
         form.add_field("width", "1024")
         form.add_field("image", request_body.image)
 
-        res = await self.session.post(
-            f"/v1/generation/{engine_id}/image-to-image/upscale",
-            data=form,
-        )
+        try:
+            res = await self.session.post(
+                f"/v1/generation/{engine_id}/image-to-image/upscale",
+                data=form,
+            )
+        except ClientResponseError as e:
+            raise figure_out_exception(e) from e
 
         return ImageToImageUpscaleResponseBody.parse_obj(await res.json())
