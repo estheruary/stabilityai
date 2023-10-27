@@ -48,6 +48,7 @@ from stabilityai.models import (
     UpscaleImageHeight,
     UpscaleImageWidth,
 )
+from stabilityai.utils import serialize_for_form
 
 
 class AsyncStabilityClient:
@@ -150,7 +151,7 @@ class AsyncStabilityClient:
                 )
             )
 
-        assert text_prompts is not None
+        text_prompts = text_prompts or [TextPrompt(text=text_prompt)]
         return text_prompts
 
     @validate_arguments
@@ -227,9 +228,9 @@ class AsyncStabilityClient:
     @validate_arguments(config={"arbitrary_types_allowed": True})
     async def image_to_image(
         self,
-        text_prompts: TextPrompts,
-        text_prompt: SingleTextPrompt,
         init_image: InitImage,
+        text_prompts: Optional[TextPrompts] = None,
+        text_prompt: Optional[SingleTextPrompt] = None,
         *,
         init_image_mode: Optional[InitImageMode] = None,
         image_strength: InitImageStrength,
@@ -263,12 +264,16 @@ class AsyncStabilityClient:
             extras=extras,
         )
 
+        form = aiohttp.FormData()
+        form_data = serialize_for_form(request_body.dict())
+
+        for k, v in form_data.items():
+            form.add_field(k, v)
+
         try:
             res = await self.session.post(
-                f"/v1/generation/{engine_id}/text-to-image",
-                data=request_body.json(
-                    exclude_none=True, exclude_defaults=True, exclude_unset=True
-                ),
+                f"/v1/generation/{engine_id}/image-to-image",
+                data=form,
             )
         except ClientResponseError as e:
             raise figure_out_exception(e) from e
