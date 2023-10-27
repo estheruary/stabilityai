@@ -3,15 +3,8 @@ import io
 from enum import StrEnum
 from typing import Annotated, List, Optional
 
-from pydantic import (
-    AnyUrl,
-    BaseModel,
-    EmailStr,
-    confloat,
-    conint,
-    constr,
-    validator,
-)
+from pydantic import AnyUrl, BaseModel, EmailStr, confloat, conint, constr, validator
+
 
 class Type(StrEnum):
     AUDIO = "AUDIO"
@@ -103,11 +96,12 @@ class TextPrompt(BaseModel):
     text: Annotated[str, constr(max_length=2000)]
     weight: Optional[float] = None
 
+
 SingleTextPrompt = str
 
 TextPrompts = List[TextPrompt]
 
-InitImage = bytes
+InitImage = io.IOBase
 
 InitImageStrength = Annotated[float, confloat(ge=0.0, le=1.0)]
 
@@ -146,6 +140,9 @@ class LatentUpscalerUpscaleRequestBody(BaseModel):
     steps: Optional[Steps] = None
     cfg_scale: Optional[CfgScale] = None
 
+    class Config:
+        arbitrary_types_allowed = True
+
 
 class ImageToImageRequestBody(BaseModel):
     text_prompts: TextPrompts
@@ -163,6 +160,9 @@ class ImageToImageRequestBody(BaseModel):
     style_preset: Optional[StylePreset] = None
     extras: Optional[Extras] = None
 
+    class Config:
+        arbitrary_types_allowed = True
+
 
 class MaskingRequestBody(BaseModel):
     init_image: InitImage
@@ -178,6 +178,9 @@ class MaskingRequestBody(BaseModel):
     style_preset: Optional[StylePreset] = None
     extras: Optional[Extras] = None
 
+    class Config:
+        arbitrary_types_allowed = True
+
 
 class TextToImageRequestBody(GenerationRequestOptionalParams):
     height: Optional[DiffuseImageHeight] = None
@@ -192,9 +195,12 @@ class ImageToImageUpscaleRequestBody(BaseModel):
 
     @validator("width", always=True)
     def mutually_exclusive(cls, v, values):
-        if values["height"] is not None and v:
+        if values.get("height") is not None and v:
             raise ValueError("You can only specify one of width and height.")
         return v
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class BalanceResponseBody(BaseModel):

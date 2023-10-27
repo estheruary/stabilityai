@@ -1,1 +1,3 @@
-__version__ = "1.0.3"
+from pkg_resources import parse_version
+
+__version__ = parse_version("1.0.4")

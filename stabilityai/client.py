@@ -1,11 +1,11 @@
-import json
 import os
+import textwrap
 from typing import Optional
 
 import aiohttp
-from pydantic import (
-    validate_arguments,
-)
+from aiohttp.client_exceptions import ClientResponseError
+from pydantic import validate_arguments
+
 from stabilityai.constants import (
     DEFAULT_GENERATION_ENGINE,
     DEFAULT_STABILITY_API_HOST,
@@ -13,7 +13,11 @@ from stabilityai.constants import (
     DEFAULT_STABILITY_CLIENT_VERSION,
     DEFAULT_UPSCALE_ENGINE,
 )
-from stabilityai.exceptions import ThisFunctionRequiresAPrompt, YouNeedToUseAContextManager
+from stabilityai.exceptions import (
+    ThisFunctionRequiresAPrompt,
+    YouNeedToUseAContextManager,
+    figure_out_exception,
+)
 from stabilityai.models import (
     AccountResponseBody,
     BalanceResponseBody,
@@ -44,8 +48,7 @@ from stabilityai.models import (
     UpscaleImageHeight,
     UpscaleImageWidth,
 )
-from stabilityai.utils import omit_none
-import textwrap
+from stabilityai.utils import serialize_for_form
 
 
 class AsyncStabilityClient:
@@ -69,7 +72,6 @@ class AsyncStabilityClient:
         self.session = await aiohttp.ClientSession(
             base_url=self.api_host,
             headers={
-                "Content-Type": "application/json",
                 "Accept": "application/json",
                 "Authorization": f"Bearer {self.api_key}",
                 "Stability-Client-ID": self.client_id,
@@ -122,9 +124,7 @@ class AsyncStabilityClient:
             )
 
     def _normalize_text_prompts(
-        self,
-        text_prompts: Optional[TextPrompts],
-        text_prompt: Optional[SingleTextPrompt]
+        self, text_prompts: Optional[TextPrompts], text_prompt: Optional[SingleTextPrompt]
     ):
         if not bool(text_prompt) ^ bool(text_prompts):
             raise ThisFunctionRequiresAPrompt(
@@ -147,15 +147,11 @@ class AsyncStabilityClient:
                                 TextPrompt(text="A beautiful sunrise", weight=1.0)
                             ],
                         )
-                    """ 
+                    """
                 )
             )
 
-        if text_prompt:
-            text_prompts = [TextPrompt(text=text_prompt)]
-
-        # After this moment text_prompts can't be None.
-        assert text_prompts is not None
+        text_prompts = text_prompts or [TextPrompt(text=text_prompt)]
         return text_prompts
 
     @validate_arguments
@@ -195,11 +191,16 @@ class AsyncStabilityClient:
             extras=extras,
         )
 
-        res = await self.session.post(
-            f"/v1/generation/{engine_id}/text-to-image",
-            data=json.dumps(omit_none(json.loads(request_body.json()))),
-        )
-        Sampler.K_DPMPP_2M
+        try:
+            res = await self.session.post(
+                f"/v1/generation/{engine_id}/text-to-image",
+                headers={"Content-Type": "application/json"},
+                data=request_body.json(
+                    exclude_defaults=True, exclude_none=True, exclude_unset=True
+                ),
+            )
+        except ClientResponseError as e:
+            raise figure_out_exception(e) from e
 
         return TextToImageResponseBody.parse_obj(await res.json())
 
@@ -224,12 +225,12 @@ class AsyncStabilityClient:
             height=dim,
         )
 
-    @validate_arguments
+    @validate_arguments(config={"arbitrary_types_allowed": True})
     async def image_to_image(
         self,
-        text_prompts: TextPrompts,
-        text_prompt: SingleTextPrompt,
         init_image: InitImage,
+        text_prompts: Optional[TextPrompts] = None,
+        text_prompt: Optional[SingleTextPrompt] = None,
         *,
         init_image_mode: Optional[InitImageMode] = None,
         image_strength: InitImageStrength,
@@ -263,13 +264,23 @@ class AsyncStabilityClient:
             extras=extras,
         )
 
-        res = await self.session.post(
-            f"/v1/generation/{engine_id}/text-to-image",
-            data=json.dumps(omit_none(json.loads(request_body.json()))),
-        )
+        form = aiohttp.FormData()
+        form_data = serialize_for_form(request_body.dict())
+
+        for k, v in form_data.items():
+            form.add_field(k, v)
+
+        try:
+            res = await self.session.post(
+                f"/v1/generation/{engine_id}/image-to-image",
+                data=form,
+            )
+        except ClientResponseError as e:
+            raise figure_out_exception(e) from e
 
         return ImageToImageResponseBody.parse_obj(await res.json())
 
+    @validate_arguments(config={"arbitrary_types_allowed": True})
     async def image_to_image_upscale(
         self,
         image: InitImage,
@@ -284,9 +295,16 @@ class AsyncStabilityClient:
 
         request_body = ImageToImageUpscaleRequestBody(image=image, width=width, height=height)
 
-        res = await self.session.post(
-            f"/v1/generation/{engine_id}/image-to-image/upscale",
-            data=json.dumps(omit_none(json.loads(request_body.json()))),
-        )
+        form = aiohttp.FormData()
+        form.add_field("width", "1024")
+        form.add_field("image", request_body.image)
+
+        try:
+            res = await self.session.post(
+                f"/v1/generation/{engine_id}/image-to-image/upscale",
+                data=form,
+            )
+        except ClientResponseError as e:
+            raise figure_out_exception(e) from e
 
         return ImageToImageUpscaleResponseBody.parse_obj(await res.json())
