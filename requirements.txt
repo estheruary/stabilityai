@@ -1,2 +1,4 @@
-aiohttp==3.8.4
-pydantic [email]==1.10.2
+aiohttp>=3.8.4
+pydantic [email]>=1.10.2
+pydantic>=2.8.2
+pydantic_core>=2.20.1
